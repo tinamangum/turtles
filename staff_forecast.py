@@ -1,31 +1,12 @@
-import os
-from helpers import is_valid_integer, is_valid_csv_file, adjust_year_woy, get_month_for_week
+from helpers import is_valid_integer, is_valid_csv_file, adjust_year_woy, get_month_for_week, get_week_dates_str
 import sys
-from dotenv import load_dotenv
-from sqlalchemy import create_engine, MetaData, Table
-
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
-import seaborn as sns
 import warnings
 import datetime
+from tabulate import tabulate
+from sklearn.metrics import r2_score, mean_squared_error
 
-from sklearn.pipeline import Pipeline
-from sklearn.compose import ColumnTransformer
-from sklearn.preprocessing import OneHotEncoder, StandardScaler, MinMaxScaler, RobustScaler
-from sklearn.impute import SimpleImputer, KNNImputer
-from sklearn.model_selection import train_test_split
-from sklearn.model_selection import GridSearchCV
-from sklearn.model_selection import cross_val_predict
-from sklearn.metrics import accuracy_score, recall_score, precision_score, confusion_matrix, r2_score, mean_squared_error
-
-from sklearn.linear_model import LogisticRegression
-from sklearn.tree import DecisionTreeClassifier
-from sklearn.neighbors import KNeighborsClassifier
-
-# Set random seed 
-RSEED = 42
 warnings.filterwarnings("ignore")
 
 
@@ -49,28 +30,28 @@ if not is_valid_integer(num_staff, 12, 1200):
     print("Error: The second argument must be an integer between 12 and 1200.")
     sys.exit(1)
 
-# Now you can perform tasks with csv_file and num_staff variables
+# Verify for user the entered arguments
+print("\n")
 print("CSV file:", csv_file)
 print("Number of full-time/year-round staff members:", num_staff)
+print("\n")
 
-df = pd.read_csv(csv_file)
-
-# Now you can read the CSV file into a DataFrame
+# read csv file into pandas dataframe
 try:
     df = pd.read_csv(csv_file)
 except pd.errors.EmptyDataError:
     print("Error: The CSV file is empty.")
     sys.exit(1)
 
-# Check if the required columns are present
+# check if required columns are present
 required_columns = ['LandingSite', 'Date_TimeCaught']
 if not set(required_columns).issubset(df.columns):
     print("Error: The CSV file must contain the following columns:", required_columns)
     sys.exit(1)
     
-# Pop off the LandingSite prefix
+# pop off the LandingSite prefix
 df['LandingSite'] = df['LandingSite'].str.replace('LandingSite_CaptureSite', '')
-# Keep only the required columns
+# keep only required columns
 df = df[required_columns]
 
 # Create Time features from Date_TimeCaught 
@@ -88,17 +69,15 @@ df_2014up = df[df['year'] >= 2014]
 
 # Find the most recent date in df_train
 most_recent_date = df_2014up['Date_TimeCaught'].max()
-
 # Calculate the date one year prior
 one_year_ago = most_recent_date - datetime.timedelta(days=365)
 
 # Separate data from the last year into df_test
 df_test = df_2014up[df_2014up['Date_TimeCaught'] >= one_year_ago]
-
 # Remove data corresponding to df_test from df_train
 df_train = df_2014up[df_2014up['Date_TimeCaught'] < one_year_ago]
 
-# After running test, use all of the data to make prediction for next year
+# After running test, we will use all of the data to make prediction for next year
 df_final = df_2014up
 
 # Display summary
@@ -106,10 +85,10 @@ print("Most recent date in dataset:", most_recent_date)
 print("One year prior:", one_year_ago)
 print("Number of rows in train data after separation:", len(df_train))
 print("Number of rows in test data (the past year):", len(df_test))
-
+print("\n")
 
 # Apply the function to each row in the test DataFrame to create the 'month_round' column for cusping week clarification
-# this is necessary for all further mean by month comparisons
+# this is necessary for ALL further mean by month comparisons
 df_test['month_round'] = df_test.apply(lambda row: get_month_for_week(row['year'], row['week_of_year']), axis=1)
 
 # training data for week comparison: group, then count the number of turtle captures
@@ -120,16 +99,27 @@ turtle_month_train = df_train.groupby(['LandingSite', 'year', 'month', 'week_of_
 turtle_week_test = df_test.groupby(['LandingSite', 'year', 'week_of_year', 'year_woy']).size().reset_index(name='number_turtles')
 # testing data for month comparison: group, then count the number of turtle captures
 turtle_month_test = df_test.groupby(['LandingSite', 'year', 'month_round', 'week_of_year', 'year_woy']).size().reset_index(name='number_turtles')
+# training data for week comparison: group, then count the number of turtle captures
+
+# here is the set for the final prediction
+turtle_week_final = df_final.groupby(['LandingSite', 'year', 'week_of_year', 'year_woy']).size().reset_index(name='number_turtles')
+# training data for month comparison: group, then count the number of turtle captures
+turtle_month_final = df_final.groupby(['LandingSite', 'year', 'month', 'week_of_year', 'year_woy']).size().reset_index(name='number_turtles')
 
 
 # Calculating the means of the training data by week and site
 mean_train = turtle_week_train.groupby(['LandingSite', 'week_of_year'])['number_turtles'].mean().reset_index(name='mean_turtles')
 mean_train['mean_turtles'] = mean_train['mean_turtles'].round()
-
 # Calculating the means of the training data by month and site 
 month_mean_train = turtle_month_train.groupby(['LandingSite', 'month'])['number_turtles'].mean().reset_index(name='mean_turtles')
 month_mean_train['mean_turtles'] = month_mean_train['mean_turtles'].round()
 
+# Calculating the means of the final data by week and site
+mean_final = turtle_week_final.groupby(['LandingSite', 'week_of_year'])['number_turtles'].mean().reset_index(name='mean_final')
+mean_final['mean_final'] = mean_final['mean_final'].round()
+# Calculating the means of the final data by month and site 
+month_mean_final = turtle_month_final.groupby(['LandingSite', 'month'])['number_turtles'].mean().reset_index(name='mean_final')
+month_mean_final['mean_final'] = month_mean_final['mean_final'].round()
 
 
 # Preparing the test data with rounded months to compare to the mean by month
@@ -164,6 +154,17 @@ month_round['month_round'] = month_round.apply(lambda row: get_month_for_week(ro
 month_round_test = month_round[['LandingSite', 'year', 'month_round', 'week_of_year', 'number_turtles']]
 month_round_test = month_round_test.sort_values(by=['LandingSite', 'year', 'week_of_year'])
 
+tt_mean_month = pd.merge(month_round_test, month_mean_train[['LandingSite', 'month', 'mean_turtles']], 
+                            left_on=['LandingSite', 'month_round'], right_on=['LandingSite', 'month'], how='left')
+tt_mean_month['mean_turtles'].fillna(0, inplace=True)
+
+# Rename the column if needed
+tt_mean_month.rename(columns={'mean_turtles': 'mean_turtles_month'}, inplace=True)
+
+# Sort the DataFrame first by 'week_of_year' and then by 'LandingSite'
+tt_mean_month_sorted = tt_mean_month.sort_values(by=['week_of_year', 'LandingSite'])
+tt_mean_month = tt_mean_month_sorted[['week_of_year', 'LandingSite', 'month_round', 'mean_turtles_month', 'number_turtles']]
+tt_mean_month = tt_mean_month.merge(month_mean_final, how='left', left_on=['LandingSite', 'month_round'], right_on=['LandingSite', 'month']).fillna(0)
 
 
 # Preparing the test data to compare to the mean by month
@@ -178,37 +179,13 @@ all_combinations = all_weeks.assign(key=1).merge(all_sites.assign(key=1), on='ke
 # Merge with the aggregated DataFrame to fill in missing values with 0
 train_mean_week = all_combinations.merge(mean_train, how='left', on=['LandingSite', 'week_of_year']).fillna(0)
 tt_mean_week = train_mean_week.merge(turtle_week_test, how='left', on=['LandingSite', 'week_of_year']).fillna(0)
+tt_mean_week = tt_mean_week.merge(mean_final, how='left', on=['LandingSite', 'week_of_year']).fillna(0)
 
 tt_mean_week.drop('year', axis=1, inplace=True)
 tt_mean_week.drop('year_woy', axis=1, inplace=True)
 
 
-
-all_sites_m = df['LandingSite'].unique()
-all_months = range(1, 13)  # 12 months in a year
-# Create a DataFrame with all possible combinations
-template_df = pd.DataFrame([(site, month) for site in all_sites_m 
-                                          for month in all_months],
-                           columns=['LandingSite', 'month'])
-
-# Merge the template DataFrame with train_mean2_month to fill in missing values
-month_full = pd.merge(template_df, month_mean_train, on=['LandingSite', 'month'], how='left')
-
-# Fill missing values with 0 for mean_turtles column
-month_full['mean_turtles'].fillna(0, inplace=True)
-
-tt_mean_month = pd.merge(month_round_test, month_full[['LandingSite', 'month', 'mean_turtles']], 
-                            left_on=['LandingSite', 'month_round'], right_on=['LandingSite', 'month'], how='left')
-
-# Rename the column if needed
-tt_mean_month.rename(columns={'mean_turtles': 'mean_turtles_month'}, inplace=True)
-
-# Sort the DataFrame first by 'week_of_year' and then by 'LandingSite'
-tt_mean_month_sorted = tt_mean_month.sort_values(by=['week_of_year', 'LandingSite'])
-tt_mean_month = tt_mean_month_sorted[['week_of_year', 'LandingSite', 'month_round', 'mean_turtles_month', 'number_turtles']]
-
-
-tt_all = pd.merge(tt_mean_week, tt_mean_month[['week_of_year', 'LandingSite', 'mean_turtles_month']], 
+tt_all = pd.merge(tt_mean_week, tt_mean_month[['week_of_year', 'LandingSite', 'mean_turtles_month', 'mean_final']], 
                          on=['week_of_year', 'LandingSite'], how='left')
 
 # if time, come back to fix this bug below, i don't know why week 52 was such a bother
@@ -216,11 +193,13 @@ tt_all.drop_duplicates(inplace=True)
 rows_to_drop = tt_all[(tt_all['week_of_year'] == 52) & (tt_all['number_turtles'] == 1)]
 tt_all.drop(rows_to_drop.index, inplace=True)
 
-
 tt_all['mean_turtles_both'] = (tt_all['mean_turtles_month'] + tt_all['mean_turtles']) / 2
 tt_all['mean_turtles_both'] = tt_all['mean_turtles_both'].round()
 
+tt_all['mean_final_both'] = (tt_all['mean_final_x'] + tt_all['mean_final_y']) / 2
+tt_all['mean_final_both'] = tt_all['mean_final_both'].round()
 
+# Predictions for next year are now tt_all['mean_final_both']
 
 # Calculate RMSE
 rmse_both = np.sqrt(mean_squared_error(tt_all['number_turtles'], tt_all['mean_turtles_both']))
@@ -232,10 +211,66 @@ print(f"RMSE: {rmse_both}")
 print(f"R-squared: {r_squared_both}")
 
 
-print('''
-      _______________________________
-     |  
-     |   
-     |  
-     |      
-      ''')
+
+# prep for template dataframe for forecast 
+today_year = most_recent_date.year
+today_week = most_recent_date.isocalendar()[1]
+template_forecast = []
+for site in df_final['LandingSite'].unique():
+    for week in range(today_week, today_week + 54):
+        # Adjust year if the week spills over into the next year
+        year = today_year + (week // 54)
+        # Calculate week of the year within the current year
+        week_of_year = week % 53 if week % 53 != 0 else 53
+        
+        template_forecast.append((site, year, week_of_year))
+
+# Create template DataFrame for forecast
+template_forecast = pd.DataFrame(template_forecast, columns=['LandingSite', 'year', 'week_of_year'])
+# Fill template for total forecast
+forecast = pd.merge(template_forecast, tt_all[['LandingSite', 'week_of_year', 'mean_final_both']], 
+                       on=['LandingSite', 'week_of_year'], how='left')
+forecast = forecast.reindex(columns=['year', 'week_of_year', 'LandingSite', 'mean_final_both'])
+forecast = forecast.sort_values(by=['year', 'week_of_year', 'LandingSite'])
+
+
+
+# apply own function to create the new column for week dates for user legibility
+forecast['week_dates'] = forecast.apply(lambda row: get_week_dates_str(row['year'], row['week_of_year']), axis=1)
+# more legibility 
+new_df = forecast[['week_dates', 'LandingSite', 'mean_final_both']]
+new_df = new_df.reset_index(drop=True)
+new_df = new_df.rename(columns={'week_dates': 'Week Dates (YYYY-MM-DD)', 
+                                 'LandingSite': 'Landing Site', 
+                                 'mean_final_both': 'Number of Turtles'})
+# converting 'Number of Turtles' column to integer type
+new_df['Number of Turtles'] = new_df['Number of Turtles'].astype(int)
+
+# creating a series to store the total number of turtles by week across sites, in same indexing as original
+total_turtles_per_week = new_df.groupby('Week Dates (YYYY-MM-DD)')['Number of Turtles'].transform('sum')
+# finding proportions of site's turtles to total turtles across sites for staff calculations
+new_df['Proportion'] = new_df['Number of Turtles'] / total_turtles_per_week
+new_df['Proportion'] = new_df['Proportion'].round(3)
+
+
+# Filter out rows with missing or infinite values in the 'Proportion' column
+new_df = new_df[new_df['Proportion'].notna() & np.isfinite(new_df['Proportion'])]
+
+
+# Calculate the remaining staff available for allocation (taking one away per site as a minimum)
+remaining_staff = num_staff - len(new_df['Landing Site'].unique())
+# Apply proportion to distribute the remaining staff among the sites for each week
+new_df['Allocated Staff'] = (remaining_staff * new_df['Proportion']).astype(int)
+# Ensure that the calculated staff numbers are whole numbers and do not exceed the total number of staff members
+new_df['Allocated Staff'] = new_df['Allocated Staff'].clip(upper=num_staff - 1) + 1
+
+# find third quartile value to choose threshold for needing extra help (especially oct - jan)
+seventy_fifth_percentile = total_turtles_per_week.quantile(0.75)
+# create the boolean 'Need_Temps' column based on the condition using prior series with weekly totals
+new_df['Need_Temps'] = total_turtles_per_week > seventy_fifth_percentile
+
+
+# print final calendar with staffing suggestions and turtle predictions
+print(tabulate(new_df, headers='keys', tablefmt='psql'))
+# clarify explicit threshold for user
+print(f"Threshold of Turtles per Week before Temporary Workers/Interns are Needed: {seventy_fifth_percentile}")
