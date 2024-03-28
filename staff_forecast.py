@@ -203,11 +203,12 @@ tt_all['mean_final_both'] = tt_all['mean_final_both'].round()
 
 # Calculate RMSE
 rmse_both = np.sqrt(mean_squared_error(tt_all['number_turtles'], tt_all['mean_turtles_both']))
+rmse_both = rmse_both.round(3)
 # Calculate R-squared
-r_squared_both = r2_score(tt_all['number_turtles'], tt_all['mean_turtles_both'])
+r_squared_both = r2_score(tt_all['number_turtles'], tt_all['mean_turtles_both']).round(3)
 
 print("Evaluation of Best Model:")
-print(f"RMSE: {rmse_both}")
+print(f"RMSE: {rmse_both} turtles")
 print(f"R-squared: {r_squared_both}")
 
 
@@ -270,7 +271,25 @@ seventy_fifth_percentile = total_turtles_per_week.quantile(0.75)
 new_df['Need_Temps'] = total_turtles_per_week > seventy_fifth_percentile
 
 
-# print final calendar with staffing suggestions and turtle predictions
-print(tabulate(new_df, headers='keys', tablefmt='psql'))
-# clarify explicit threshold for user
+# Replace consecutive duplicate values with an empty string
+new_df['Week Dates (YYYY-MM-DD)'] =new_df['Week Dates (YYYY-MM-DD)'].mask(new_df['Week Dates (YYYY-MM-DD)'].duplicated(), '')
+
+# Determine the number of unique 'Landing Site' values
+num_unique_sites = len(new_df['Landing Site'].unique())
+# Initialize a list to store tabulated rows
+tabulated_rows = []
+# Get the column names
+columns = new_df.columns.tolist()
+# Iterate over the rows of the DataFrame
+for i, row in enumerate(new_df.itertuples(index=False), start=1):
+    tabulated_rows.append(row)
+    # Add a horizontal line after every n rows
+    if i % num_unique_sites == 0 and i != len(new_df):
+        tabulated_rows.append(['---' for _ in range(len(row))])  # Add a horizontal line
+
+
+# Display the modified DataFrame using tabulate
+print(tabulate(tabulated_rows, headers=columns, tablefmt='pretty', showindex='never'))
+
+# clarify explicit threshold of needing temp workers for user
 print(f"Threshold of Turtles per Week before Temporary Workers/Interns are Needed: {seventy_fifth_percentile}")
