@@ -271,24 +271,24 @@ seventy_fifth_percentile = total_turtles_per_week.quantile(0.75)
 new_df['Need_Temps'] = total_turtles_per_week > seventy_fifth_percentile
 
 
-# Replace consecutive duplicate values with an empty string
+# replace consecutive duplicate values with an empty string (so it looks blank)
 new_df['Week Dates (YYYY-MM-DD)'] =new_df['Week Dates (YYYY-MM-DD)'].mask(new_df['Week Dates (YYYY-MM-DD)'].duplicated(), '')
 
-# Determine the number of unique 'Landing Site' values
+# number of unique 'Landing Site' values
 num_unique_sites = len(new_df['Landing Site'].unique())
-# Initialize a list to store tabulated rows
+# initialize a list to store tabulated rows
 tabulated_rows = []
-# Get the column names
+# the column names
 columns = new_df.columns.tolist()
-# Iterate over the rows of the DataFrame
+# iterate over the rows of the DataFrame
 for i, row in enumerate(new_df.itertuples(index=False), start=1):
     tabulated_rows.append(row)
-    # Add a horizontal line after every n rows
+    # add a horizontal line after every 'n' rows (in case number of Landing Sites changes)
     if i % num_unique_sites == 0 and i != len(new_df):
         tabulated_rows.append(['---' for _ in range(len(row))])  # Add a horizontal line
 
 
-# Display the modified DataFrame using tabulate
+# Display
 print(tabulate(tabulated_rows, headers=columns, tablefmt='pretty', showindex='never'))
 
 # clarify explicit threshold of needing temp workers for user
