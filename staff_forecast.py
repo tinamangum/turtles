@@ -289,6 +289,7 @@ for i, row in enumerate(new_df.itertuples(index=False), start=1):
 
 
 # Display
+print(f"Threshold of Turtles per Week before Temporary Workers/Interns are Needed: {seventy_fifth_percentile}")
 print(tabulate(tabulated_rows, headers=columns, tablefmt='pretty', showindex='never'))
 # clarify explicit threshold of needing temp workers for user
-print(f"Threshold of Turtles per Week before Temporary Workers/Interns are Needed: {seventy_fifth_percentile}")
+# print(f"Threshold of Turtles per Week before Temporary Workers/Interns are Needed: {seventy_fifth_percentile}")
