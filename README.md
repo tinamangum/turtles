@@ -2,7 +2,7 @@
 
 A data science challenge from Zindi to optimize turtle conservation off of the Kenyan coast. 
 
-Our team delivered in a command-line program to predict the number of turtle captures & suggest staff allocation per site for the next full calendar year.
+Our team delivered a command-line program to predict the number of turtle captures & suggest staff allocation per site for the next full calendar year.
 
 Original challenge can be found here: <a href="https://zindi.africa/competitions/sea-turtle-rescue-forecast-challenge">Zindi</a>
 
